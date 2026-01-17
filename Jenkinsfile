@@ -38,10 +38,10 @@ pipeline {
         stage('Static') {
             steps {
                 bat '''
-                    "C:\\Program Files\\Python314\\python.exe" -m flake8 --format=checkstyle app > flake8-result.xml || exit 0
+                    "C:\\Program Files\\Python314\\python.exe" -m flake8 --format=checkstyle --output-file=flake8-result.xml app || exit 0
                 '''
                 recordIssues tools: [checkStyle(pattern: 'flake8-result.xml', reportEncoding: 'UTF-8')], 
-                    qualityGates: [[threshold: 8, type: 'TOTAL', unstable: true], [threshold: 10, type: 'TOTAL', unhealthy: true]]
+                    qualityGates: [[threshold: 8, type: 'TOTAL', unstable: true], [threshold: 10, type: 'TOTAL', unstable: false]]
             }
         }
         stage('Security') {
@@ -50,7 +50,7 @@ pipeline {
                     "C:\\Program Files\\Python314\\python.exe" -m bandit -r app -f custom -o bandit-result.txt --msg-template "{abspath}:{line}: [{test_id}] {msg}" || exit 0
                 '''
                 recordIssues tools: [pyLint(pattern: 'bandit-result.txt', reportEncoding: 'UTF-8')],
-                    qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true], [threshold: 4, type: 'TOTAL', unhealthy: true]]
+                    qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true], [threshold: 4, type: 'TOTAL', unstable: false]]
             }
         }
         stage('Coverage') {
@@ -67,20 +67,22 @@ pipeline {
         }
         stage('Performance') {
             steps {
-                bat '''
-                    set FLASK_APP=app\\api.py
-                    start "" /B cmd /c "C:\\Program Files\\Python314\\python.exe" -m flask run
-                    ping 127.0.0.1 -n 4 > nul
-                    C:\\jmeter\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -l result-performance.jtl
-                '''
-                perfReport sourceDataFiles: 'result-performance.jtl'
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    bat '''
+                        set FLASK_APP=app\\api.py
+                        start "" /B cmd /c "C:\\Program Files\\Python314\\python.exe" -m flask run
+                        ping 127.0.0.1 -n 4 > nul
+                        C:\\jmeter\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -l result-performance.jtl
+                    '''
+                    perfReport sourceDataFiles: 'result-performance.jtl'
+                }
             }
         }
     }
     post {
         always {
             junit 'result-*.xml'
-            cleanWs()
         }
     }
 }
+
