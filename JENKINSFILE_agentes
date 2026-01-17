@@ -1,0 +1,166 @@
+pipeline {
+    agent none
+    stages {
+        stage('Get Code') {
+            agent { label 'principal' }
+            steps {
+                bat 'whoami'
+                bat 'hostname'
+                echo "WORKSPACE: ${WORKSPACE}"
+                git 'https://github.com/viktorcito/unir-cp1-devops.git'
+                stash includes: '**/*', name: 'source-code'
+            }
+        }
+        stage('Tests') {
+            parallel {
+                stage('Unit') {
+                    agent { label 'agent1' }
+                    steps {
+                        bat 'whoami'
+                        bat 'hostname'
+                        echo "WORKSPACE: ${WORKSPACE}"
+                        unstash 'source-code'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            bat '''
+                                set PYTHONPATH=%WORKSPACE%
+                                py -m pytest test\\unit --junitxml=result-unit.xml
+                            '''
+                        }
+                        stash includes: 'result-unit.xml', name: 'unit-results'
+                    }
+                    post {
+                        always {
+                            cleanWs()
+                        }
+                    }
+                }
+                stage('Rest') {
+                    agent { label 'agent2' }
+                    steps {
+                        bat 'whoami'
+                        bat 'hostname'
+                        echo "WORKSPACE: ${WORKSPACE}"
+                        unstash 'source-code'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            bat '''
+                                set FLASK_APP=app\\api.py
+                                set FLASK_ENV=development
+                                start /B py -m flask run
+                                start /B java -jar C:\\wiremock\\wiremock-standalone.jar --port 9090 --root-dir C:\\wiremock
+                                timeout /t 5
+                                set PYTHONPATH=%WORKSPACE%
+                                py -m pytest test\\rest --junitxml=result-rest.xml
+                            '''
+                        }
+                        stash includes: 'result-rest.xml', name: 'rest-results'
+                    }
+                    post {
+                        always {
+                            cleanWs()
+                        }
+                    }
+                }
+                stage('Static') {
+                    agent { label 'agent1' }
+                    steps {
+                        bat 'whoami'
+                        bat 'hostname'
+                        echo "WORKSPACE: ${WORKSPACE}"
+                        unstash 'source-code'
+                        bat '''
+                            py -m flake8 --format=checkstyle app > flake8-result.xml || exit 0
+                        '''
+                        stash includes: 'flake8-result.xml', name: 'static-results'
+                        recordIssues tools: [checkStyle(pattern: 'flake8-result.xml', reportEncoding: 'UTF-8')], 
+                            qualityGates: [[threshold: 8, type: 'TOTAL', unstable: true], [threshold: 10, type: 'TOTAL', unhealthy: true]]
+                    }
+                    post {
+                        always {
+                            cleanWs()
+                        }
+                    }
+                }
+                stage('Security') {
+                    agent { label 'agent2' }
+                    steps {
+                        bat 'whoami'
+                        bat 'hostname'
+                        echo "WORKSPACE: ${WORKSPACE}"
+                        unstash 'source-code'
+                        bat '''
+                            py -m bandit -r app -f custom -o bandit-result.txt --msg-template "{abspath}:{line}: [{test_id}] {msg}" || exit 0
+                        '''
+                        stash includes: 'bandit-result.txt', name: 'security-results'
+                        recordIssues tools: [pyLint(pattern: 'bandit-result.txt', reportEncoding: 'UTF-8')],
+                            qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true], [threshold: 4, type: 'TOTAL', unhealthy: true]]
+                    }
+                    post {
+                        always {
+                            cleanWs()
+                        }
+                    }
+                }
+            }
+        }
+        stage('Coverage') {
+            agent { label 'principal' }
+            steps {
+                bat 'whoami'
+                bat 'hostname'
+                echo "WORKSPACE: ${WORKSPACE}"
+                unstash 'source-code'
+                bat '''
+                    set PYTHONPATH=%WORKSPACE%
+                    py -m coverage run --branch --source=app -m pytest test\\unit
+                    py -m coverage xml -o coverage.xml
+                '''
+                cobertura coberturaReportFile: 'coverage.xml',
+                    conditionalCoverageTargets: '80, 0, 90',
+                    lineCoverageTargets: '85, 0, 95'
+                stash includes: 'coverage.xml', name: 'coverage-results'
+            }
+            post {
+                always {
+                    cleanWs()
+                }
+            }
+        }
+        stage('Performance') {
+            agent { label 'principal' }
+            steps {
+                bat 'whoami'
+                bat 'hostname'
+                echo "WORKSPACE: ${WORKSPACE}"
+                unstash 'source-code'
+                bat '''
+                    set FLASK_APP=app\\api.py
+                    start /B py -m flask run
+                    timeout /t 3
+                    C:\\jmeter\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -l result-performance.jtl
+                '''
+                perfReport sourceDataFiles: 'result-performance.jtl'
+            }
+            post {
+                always {
+                    cleanWs()
+                }
+            }
+        }
+        stage('Results') {
+            agent { label 'principal' }
+            steps {
+                bat 'whoami'
+                bat 'hostname'
+                echo "WORKSPACE: ${WORKSPACE}"
+                unstash 'unit-results'
+                unstash 'rest-results'
+                junit 'result-*.xml'
+            }
+            post {
+                always {
+                    cleanWs()
+                }
+            }
+        }
+    }
+}
