@@ -26,8 +26,8 @@ pipeline {
                     bat '''
                         set FLASK_APP=app\\api.py
                         set FLASK_ENV=development
-                        start /B "C:\\Program Files\\Python314\\python.exe" -m flask run
-                        start /B java -jar C:\\wiremock\\wiremock-standalone.jar --port 9090 --root-dir C:\\wiremock
+                        start "" /B cmd /c "C:\\Program Files\\Python314\\python.exe" -m flask run
+                        start "" /B java -jar C:\\wiremock\\wiremock-standalone.jar --port 9090 --root-dir C:\\wiremock
                         ping 127.0.0.1 -n 6 > nul
                         set PYTHONPATH=%WORKSPACE%
                         "C:\\Program Files\\Python314\\python.exe" -m pytest test\\rest --junitxml=result-rest.xml
@@ -69,7 +69,7 @@ pipeline {
             steps {
                 bat '''
                     set FLASK_APP=app\\api.py
-                    start /B "C:\\Program Files\\Python314\\python.exe" -m flask run
+                    start "" /B cmd /c "C:\\Program Files\\Python314\\python.exe" -m flask run
                     ping 127.0.0.1 -n 4 > nul
                     C:\\jmeter\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -l result-performance.jtl
                 '''
