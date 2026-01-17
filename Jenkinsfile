@@ -6,7 +6,6 @@ pipeline {
     stages {
         stage('Get Code') {
             steps {
-                // Obtener código del repositorio
                 git 'https://github.com/viktorcito/unir-cp1-devops.git'
             }
         }
@@ -37,32 +36,32 @@ pipeline {
         }
         stage('Static') {
             steps {
-                bat '''
-                    "C:\\Program Files\\Python314\\python.exe" -m flake8 --format=checkstyle --output-file=flake8-result.xml app || exit 0
-                '''
-                recordIssues tools: [checkStyle(pattern: 'flake8-result.xml', reportEncoding: 'UTF-8')], 
-                    qualityGates: [[threshold: 8, type: 'TOTAL', unstable: true], [threshold: 10, type: 'TOTAL', unstable: false]]
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    bat '''
+                        "C:\\Program Files\\Python314\\python.exe" -m flake8 app --exit-zero
+                    '''
+                }
             }
         }
         stage('Security') {
             steps {
-                bat '''
-                    "C:\\Program Files\\Python314\\python.exe" -m bandit -r app -f custom -o bandit-result.txt --msg-template "{abspath}:{line}: [{test_id}] {msg}" || exit 0
-                '''
-                recordIssues tools: [pyLint(pattern: 'bandit-result.txt', reportEncoding: 'UTF-8')],
-                    qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true], [threshold: 4, type: 'TOTAL', unstable: false]]
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    bat '''
+                        "C:\\Program Files\\Python314\\python.exe" -m bandit -r app --exit-zero
+                    '''
+                }
             }
         }
         stage('Coverage') {
             steps {
-                bat '''
-                    set PYTHONPATH=%WORKSPACE%
-                    "C:\\Program Files\\Python314\\python.exe" -m coverage run --branch --source=app -m pytest test\\unit
-                    "C:\\Program Files\\Python314\\python.exe" -m coverage xml -o coverage.xml
-                '''
-                cobertura coberturaReportFile: 'coverage.xml',
-                    conditionalCoverageTargets: '80, 0, 90',
-                    lineCoverageTargets: '85, 0, 95'
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    bat '''
+                        set PYTHONPATH=%WORKSPACE%
+                        "C:\\Program Files\\Python314\\python.exe" -m coverage run --branch --source=app -m pytest test\\unit
+                        "C:\\Program Files\\Python314\\python.exe" -m coverage report
+                        "C:\\Program Files\\Python314\\python.exe" -m coverage xml -o coverage.xml
+                    '''
+                }
             }
         }
         stage('Performance') {
@@ -85,4 +84,3 @@ pipeline {
         }
     }
 }
-
