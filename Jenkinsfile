@@ -1,5 +1,8 @@
 pipeline {
     agent any
+    environment {
+        PYTHON = '"C:\\Program Files\\Python314\\python.exe"'
+    }
     stages {
         stage('Get Code') {
             steps {
@@ -12,7 +15,7 @@ pipeline {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     bat '''
                         set PYTHONPATH=%WORKSPACE%
-                        py -m pytest test\\unit --junitxml=result-unit.xml
+                        "C:\\Program Files\\Python314\\python.exe" -m pytest test\\unit --junitxml=result-unit.xml
                     '''
                 }
             }
@@ -23,11 +26,11 @@ pipeline {
                     bat '''
                         set FLASK_APP=app\\api.py
                         set FLASK_ENV=development
-                        start /B py -m flask run
+                        start /B "C:\\Program Files\\Python314\\python.exe" -m flask run
                         start /B java -jar C:\\wiremock\\wiremock-standalone.jar --port 9090 --root-dir C:\\wiremock
-                        timeout /t 5
+                        ping 127.0.0.1 -n 6 > nul
                         set PYTHONPATH=%WORKSPACE%
-                        py -m pytest test\\rest --junitxml=result-rest.xml
+                        "C:\\Program Files\\Python314\\python.exe" -m pytest test\\rest --junitxml=result-rest.xml
                     '''
                 }
             }
@@ -35,7 +38,7 @@ pipeline {
         stage('Static') {
             steps {
                 bat '''
-                    py -m flake8 --format=checkstyle app > flake8-result.xml || exit 0
+                    "C:\\Program Files\\Python314\\python.exe" -m flake8 --format=checkstyle app > flake8-result.xml || exit 0
                 '''
                 recordIssues tools: [checkStyle(pattern: 'flake8-result.xml', reportEncoding: 'UTF-8')], 
                     qualityGates: [[threshold: 8, type: 'TOTAL', unstable: true], [threshold: 10, type: 'TOTAL', unhealthy: true]]
@@ -44,7 +47,7 @@ pipeline {
         stage('Security') {
             steps {
                 bat '''
-                    py -m bandit -r app -f custom -o bandit-result.txt --msg-template "{abspath}:{line}: [{test_id}] {msg}" || exit 0
+                    "C:\\Program Files\\Python314\\python.exe" -m bandit -r app -f custom -o bandit-result.txt --msg-template "{abspath}:{line}: [{test_id}] {msg}" || exit 0
                 '''
                 recordIssues tools: [pyLint(pattern: 'bandit-result.txt', reportEncoding: 'UTF-8')],
                     qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true], [threshold: 4, type: 'TOTAL', unhealthy: true]]
@@ -54,8 +57,8 @@ pipeline {
             steps {
                 bat '''
                     set PYTHONPATH=%WORKSPACE%
-                    py -m coverage run --branch --source=app -m pytest test\\unit
-                    py -m coverage xml -o coverage.xml
+                    "C:\\Program Files\\Python314\\python.exe" -m coverage run --branch --source=app -m pytest test\\unit
+                    "C:\\Program Files\\Python314\\python.exe" -m coverage xml -o coverage.xml
                 '''
                 cobertura coberturaReportFile: 'coverage.xml',
                     conditionalCoverageTargets: '80, 0, 90',
@@ -66,8 +69,8 @@ pipeline {
             steps {
                 bat '''
                     set FLASK_APP=app\\api.py
-                    start /B py -m flask run
-                    timeout /t 3
+                    start /B "C:\\Program Files\\Python314\\python.exe" -m flask run
+                    ping 127.0.0.1 -n 4 > nul
                     C:\\jmeter\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -l result-performance.jtl
                 '''
                 perfReport sourceDataFiles: 'result-performance.jtl'
