@@ -27,7 +27,16 @@ pipeline {
                         set FLASK_ENV=development
                         start "" /B cmd /c "C:\\Program Files\\Python314\\python.exe" -m flask run
                         start "" /B java -jar C:\\wiremock\\wiremock-standalone.jar --port 9090 --root-dir C:\\wiremock
-                        ping 127.0.0.1 -n 6 > nul
+                        
+                        REM Espera activa: verificar que Flask esté listo (hasta 30 intentos)
+                        set FLASK_READY=0
+                        for /L %%i in (1,1,30) do (
+                            curl -s http://localhost:5000/ >nul 2>&1 && set FLASK_READY=1 && goto :flask_ok
+                            ping 127.0.0.1 -n 2 >nul
+                        )
+                        :flask_ok
+                        if %FLASK_READY%==0 echo WARNING: Flask may not be ready
+                        
                         set PYTHONPATH=%WORKSPACE%
                         "C:\\Program Files\\Python314\\python.exe" -m pytest test\\rest --junitxml=result-rest.xml
                     '''
