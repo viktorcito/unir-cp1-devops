@@ -2,7 +2,7 @@ pipeline {
     agent none
     stages {
         stage('Get Code') {
-            agent { label 'Built-In' }
+            agent { label 'built-in' }
             steps {
                 echo "=== AGENT INFO ==="
                 bat 'whoami'
@@ -141,7 +141,7 @@ pipeline {
     }
     post {
         always {
-            node('Built-In') {
+            node('built-in') {
                 unstash 'unit-results'
                 unstash 'rest-results'
                 junit 'result-*.xml'
