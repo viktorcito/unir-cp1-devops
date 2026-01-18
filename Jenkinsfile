@@ -61,6 +61,7 @@ pipeline {
                         "C:\\Program Files\\Python314\\python.exe" -m coverage report
                         "C:\\Program Files\\Python314\\python.exe" -m coverage xml -o coverage.xml
                     '''
+                    recordCoverage(tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']])
                 }
             }
         }
